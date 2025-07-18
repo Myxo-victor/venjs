@@ -120,5 +120,5 @@ License
 Contact
 
 Author: Myxo Victor
-Company: Aximon
+Company: Aximon   [www.aximon.ng]
 Repository: github.com/Myxo-victor/venjs

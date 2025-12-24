@@ -1,6 +1,6 @@
 const venjs = {
     // Hidden Bridge Configuration
-    _bridgeUrl: 'flight.php', 
+    _bridgeUrl: 'https://cdn.jsdelivr.net/gh/Myxo-victor/venjs@latest/flight.php', 
 
     db: {
         _execute: async (action, table, data = null, id = null) => {

@@ -1,10 +1,22 @@
 const venjs = {
-    // Hidden Bridge Configuration
-    _bridgeUrl: 'https://raw.githubusercontent.com/Myxo-victor/venjs/flight.php', 
+    // 1. DYNAMIC BRIDGE DETECTION
+    // This logic ensures 'flight.php' is relative to the venjs file, not the page URL.
+    _bridgeUrl: (function() {
+        const script = document.currentScript;
+        if (script && script.src) {
+            // Get the folder where venjs script is located
+            const url = new URL(script.src);
+            const pathParts = url.pathname.split('/');
+            pathParts.pop(); // Remove 'venFlight.js'
+            const folderPath = pathParts.join('/');
+            return `${url.origin}${folderPath}/flight.php`;
+        }
+        // Fallback to absolute GitHub if everything else fails
+        return 'https://raw.githubusercontent.com/Myxo-victor/venjs/main/flight.php';
+    })(),
 
     db: {
         _execute: async (action, table, data = null, id = null) => {
-            // Retrieve DB config from a global or internal store if set
             const config = window._ven_db_config || {}; 
             try {
                 const response = await fetch(venjs._bridgeUrl, {
@@ -14,12 +26,14 @@ const venjs = {
                 });
                 return await response.json();
             } catch (err) {
+                console.error("Venjs Bridge Error:", err);
                 return { success: false, error: "Bridge connection failed" };
             }
         },
-        // Setup credentials once
-        connect: (config) => { window._ven_db_config = config; },
-        // Methods requested
+        connect: (config, customUrl = null) => { 
+            window._ven_db_config = config; 
+            if (customUrl) venjs._bridgeUrl = customUrl; // Allows manual override
+        },
         fetch: (table) => venjs.db._execute('fetch', table),
         send: (table, data) => venjs.db._execute('send', table, data),
         delete: (table, id) => venjs.db._execute('delete', table, null, id),
@@ -27,26 +41,18 @@ const venjs = {
     },
 
     createElement: (tag, props = {}, children = []) => {
-        const isNode = typeof window === 'undefined';
-        if (isNode) {
-            return { tag, props: { ...props }, children: children.map(child => typeof child === 'string' ? child : child) };
-        }
         const element = document.createElement(tag);
-        if (props.textContent) element.textContent = props.textContent;
-        if (props.className) element.className = props.className;
-        if (props.id) element.id = props.id;
-        if (props.style) Object.assign(element.style, props.style);
-        if (props.onclick) element.onclick = props.onclick; // Added for easier event handling
-        if (props.events) {
-            Object.entries(props.events).forEach(([event, handler]) => {
-                element.addEventListener(event, handler);
-            });
-        }
-        if (props.value !== undefined) element.value = props.value;
-        if (props.placeholder) element.placeholder = props.placeholder;
-        if (props.type) element.type = props.type;
-        if (props.src) element.src = props.src;
-        if (props.innerHTML) element.innerHTML = props.innerHTML;
+        Object.entries(props).forEach(([key, value]) => {
+            if (key === 'events') {
+                Object.entries(value).forEach(([ev, fn]) => element.addEventListener(ev, fn));
+            } else if (key === 'style') {
+                Object.assign(element.style, value);
+            } else if (key in element) {
+                element[key] = value;
+            } else {
+                element.setAttribute(key, value);
+            }
+        });
         children.forEach(child => {
             if (typeof child === 'string') {
                 element.appendChild(document.createTextNode(child));
@@ -56,7 +62,7 @@ const venjs = {
         });
         return element;
     },
-    
+
     createStore: (initialState) => {
         let state = { ...initialState };
         const listeners = [];
@@ -64,25 +70,19 @@ const venjs = {
             getState: () => state,
             setState: (newState) => {
                 state = { ...state, ...newState };
-                listeners.forEach(listener => listener(state));
+                listeners.forEach(l => l(state));
             },
-            subscribe: (listener) => {
-                listeners.push(listener);
-                return () => listeners.splice(listeners.indexOf(listener), 1);
+            subscribe: (l) => {
+                listeners.push(l);
+                return () => listeners.splice(listeners.indexOf(l), 1);
             }
         };
     },
 
     ven: (app, component) => {
-        if (typeof window === 'undefined') {
-            console.log('Venjs running in Node.js');
-        } else {
-            if (app) {
-                app.innerHTML = '';
-                app.appendChild(component());
-            } else {
-                console.error('App element not found');
-            }
+        if (app) {
+            app.innerHTML = '';
+            app.appendChild(component());
         }
     }
 };

@@ -1,6 +1,6 @@
 const venjs = {
     // Hidden Bridge Configuration
-    _bridgeUrl: 'https://noteflip.aximon.ng/flight.php', 
+    _bridgeUrl: 'https://raw.githubusercontent.com/Myxo-victor/venjs/main/flight.php', 
 
     db: {
         _execute: async (action, table, data = null, id = null) => {

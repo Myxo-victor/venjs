@@ -1,30 +1,87 @@
 /*
-*@author Myxo victor
-*@type Framework + engine
-*@Built for UIs and animations
-*@copy Copyright Aximon 2025 | Mit Lincense
+* @author Myxo victor
+* @type Cross-Platform Framework + Engine
+* @Version 2.3 (Unified + API Connector + Rendering Aliases)
+* @copy Copyright Aximon 2025 | MIT License
 */
 
 const venjs = {
-    createElement: (tag, props = {}, children = []) => {
-        const isNode = typeof window === 'undefined';
-        if (isNode) {
-            return { tag, props: { ...props }, children: children.map(child => typeof child === 'string' ? child : child) };
+    // Detect environment
+    isWeb: typeof window !== 'undefined' && typeof document !== 'undefined',
+
+    // --- API CONNECTOR MODULE ---
+    api: {
+        /**
+         * venjs.api.connect
+         * Unified method for API calls using a modern async/await interface.
+         * @param {string} url - The target endpoint URL.
+         * @param {Object} options - Custom configuration (method, headers, body, etc.)
+         */
+        connect: async function(url, options = {}) {
+            const config = {
+                method: options.method || 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            };
+
+            // Automatically stringify object bodies
+            if (options.body && typeof options.body === 'object') {
+                config.body = JSON.stringify(options.body);
+            }
+
+            try {
+                const response = await fetch(url, config);
+                
+                if (!response.ok) {
+                    throw new Error(`Venjs API Error: ${response.status} ${response.statusText}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error("Venjs Connection Failed:", error);
+                throw error;
+            }
         }
+    },
+
+    // --- UI ENGINE ---
+    createElement: (tag, props = {}, children = []) => {
+        // MOBILE/NODE LOGIC: Return a Virtual Node
+        if (!venjs.isWeb) {
+            return {
+                type: 'VEN_NODE',
+                tag: tag,
+                props: { ...props },
+                children: children.map(child => 
+                    typeof child === 'string' ? { type: 'TEXT', content: child } : child
+                )
+            };
+        }
+
+        // WEB LOGIC: Return real DOM element
         const element = document.createElement(tag);
+        
+        // Handle Properties
         if (props.textContent) element.textContent = props.textContent;
         if (props.className) element.className = props.className;
         if (props.id) element.id = props.id;
         if (props.style) Object.assign(element.style, props.style);
+        if (props.value !== undefined) element.value = props.value;
+        if (props.placeholder) element.placeholder = props.placeholder;
+        if (props.type) element.type = props.type;
+        if (props.src) element.src = props.src;
+
+        // Handle Events
         if (props.events) {
             Object.entries(props.events).forEach(([event, handler]) => {
                 element.addEventListener(event, handler);
             });
         }
-        if (props.value !== undefined) element.value = props.value;
-        if (props.placeholder) element.placeholder = props.placeholder;
-        if (props.type) element.type = props.type;
-        if (props.src) element.src = props.src;
+
+        // Handle Children
         children.forEach(child => {
             if (typeof child === 'string') {
                 element.appendChild(document.createTextNode(child));
@@ -32,9 +89,11 @@ const venjs = {
                 element.appendChild(child);
             }
         });
+
         return element;
     },
 
+    // --- STATE MANAGEMENT ---
     createStore: (initialState) => {
         let state = { ...initialState };
         const listeners = [];
@@ -51,14 +110,9 @@ const venjs = {
         };
     },
 
-    /**
-     * venjs.animate
-     * Triggers high-performance animations using WAAPI and Intersection Observer
-     * @param {string|HTMLElement} selector - CSS selector or Element
-     * @param {Object} options - Animation config (slideFrom, duration, easing, etc.)
-     */
+    // --- ANIMATION ENGINE ---
     animate: function(selector, options = {}) {
-        if (typeof window === 'undefined') return;
+        if (!venjs.isWeb) return;
 
         const elements = typeof selector === 'string' ? document.querySelectorAll(selector) : [selector];
         const config = {
@@ -81,22 +135,16 @@ const venjs = {
         elements.forEach(el => observer.observe(el));
     },
 
-    // Internal animation player
     _play: (el, options, config) => {
-        // Promote to GPU layer
         el.style.willChange = 'transform, opacity';
-
-        const keyframes = [];
         const start = { opacity: options.opacity ? options.opacity[0] : 0, transform: '' };
         const end = { opacity: options.opacity ? options.opacity[1] : 1, transform: 'translate(0,0) scale(1)' };
 
-        // Handle Sliding
         if (options.slideFrom === 'left') start.transform += 'translateX(-100px) ';
         if (options.slideFrom === 'right') start.transform += 'translateX(100px) ';
         if (options.slideFrom === 'top') start.transform += 'translateY(-100px) ';
         if (options.slideFrom === 'bottom') start.transform += 'translateY(100px) ';
 
-        // Handle Scaling
         if (options.scale) {
             start.transform += `scale(${options.scale[0]}) `;
             end.transform = 'translate(0,0) scale(' + options.scale[1] + ')';
@@ -110,24 +158,27 @@ const venjs = {
         });
     },
 
-    loadPage: async (page, documentation) => {
-        const content = documentation[page] || documentation['hello-world'];
-        return venjs.createElement('div', {}, [
-            venjs.createElement('h2', { className: 'text-2xl font-bold mb-4', textContent: content.title }),
-            venjs.createElement('div', { className: 'prose', innerHTML: content.content })
-        ]);
-    },
+    // --- RENDERING & ALIASES ---
+    render: function(app, component) {
+        if (!venjs.isWeb) {
+            const uiTree = component();
+            console.log('Mobile UI Tree generated:', uiTree);
+            return;
+        }
 
-    ven: (app, component) => {
-        if (typeof window === 'undefined') {
-            console.log('Venjs running in Node.js');
-        } else {
-            if (app) {
-                app.innerHTML = '';
-                app.appendChild(component());
-            } else {
-                console.error('App element not found');
+        if (app) {
+            app.innerHTML = '';
+            const content = component();
+            // Ensure we handle both Ven elements and standard strings/nodes
+            if (content instanceof HTMLElement) {
+                app.appendChild(content);
+            } else if (typeof content === 'string') {
+                app.innerHTML = content;
             }
         }
     }
 };
+
+// Define Aliases
+venjs.ven = venjs.render;
+venjs.mount = venjs.render;

@@ -1,7 +1,7 @@
 /*
 * @author Myxo victor
 * @type Cross-Platform Framework + Engine
-* @Version 3.1 (VDom + Reactive Signals + Flexible Array Children + Swapped Mount)
+* @Version 3.3 (Unified: VDom + Proxy Tags + Signals + Legacy Store & Animate)
 * @copy Copyright Aximon 2025 | MIT License
 */
 
@@ -14,16 +14,15 @@ const venjs = (() => {
 
     // --- VIRTUAL DOM CORE ---
     function createVNode(tag, props, ...children) {
-        // Flatten children to handle both [child1, child2] and child1, child2
-        const flatChildren = children.flat(Infinity);
+        const flatChildren = children.flat(Infinity).filter(c => c !== null && c !== undefined);
         
         return {
             tag,
             props: props || {},
             children: flatChildren.map(child =>
-                (child !== null && typeof child === "object" && child.tag) 
+                (typeof child === "object" && child.tag) 
                     ? child 
-                    : createTextVNode(String(child ?? ""))
+                    : createTextVNode(String(child))
             )
         };
     }
@@ -36,7 +35,7 @@ const venjs = (() => {
         };
     }
 
-    // --- REACTIVE SIGNALS ---
+    // --- REACTIVE SIGNALS (Modern State) ---
     let currentEffect = null;
 
     function signal(value) {
@@ -73,41 +72,40 @@ const venjs = (() => {
             dom.appendChild(createDom(child));
         });
 
+        vnode.dom = dom;
         return dom;
     }
 
     function updateDom(dom, prevProps, nextProps) {
-        // Remove old properties
-        Object.keys(prevProps)
-            .filter(isProperty)
-            .forEach(name => { dom[name] = ""; });
-
-        // Remove old events
-        Object.keys(prevProps)
-            .filter(isEvent)
-            .forEach(name => {
+        // Remove old properties/events
+        Object.keys(prevProps).forEach(name => {
+            if (isEvent(name)) {
                 const eventType = name.toLowerCase().substring(2);
                 dom.removeEventListener(eventType, prevProps[name]);
-            });
+            } else if (isProperty(name)) {
+                if (name === 'className' || name === 'class') dom.className = '';
+                else dom.removeAttribute(name);
+            }
+        });
 
-        // Add new properties
-        Object.keys(nextProps)
-            .filter(isProperty)
-            .forEach(name => {
-                if (name === 'style' && typeof nextProps[name] === 'object') {
-                    Object.assign(dom.style, nextProps[name]);
-                } else {
-                    dom[name] = nextProps[name];
-                }
-            });
-
-        // Add new events
-        Object.keys(nextProps)
-            .filter(isEvent)
-            .forEach(name => {
+        // Add new properties/events
+        Object.keys(nextProps).forEach(name => {
+            const val = nextProps[name];
+            if (isEvent(name)) {
                 const eventType = name.toLowerCase().substring(2);
-                dom.addEventListener(eventType, nextProps[name]);
-            });
+                dom.addEventListener(eventType, val);
+            } else if (isProperty(name)) {
+                if (name === 'style' && typeof val === 'object') {
+                    Object.assign(dom.style, val);
+                } else if (name === 'className' || name === 'class') {
+                    dom.className = val;
+                } else if (name === 'innerHTML') {
+                    dom.innerHTML = val;
+                } else {
+                    dom[name] = val;
+                }
+            }
+        });
     }
 
     // --- THE CORE BASE OBJECT ---
@@ -115,9 +113,26 @@ const venjs = (() => {
         isWeb,
         signal,
         effect,
-        
         createElement: createVNode,
 
+        // --- LEGACY STATE MANAGEMENT (Added back for compatibility) ---
+        createStore: function(initialState) {
+            let state = { ...initialState };
+            const listeners = [];
+            return {
+                getState: () => state,
+                setState: (newState) => {
+                    state = { ...state, ...newState };
+                    listeners.forEach(listener => listener(state));
+                },
+                subscribe: (listener) => {
+                    listeners.push(listener);
+                    return () => listeners.splice(listeners.indexOf(listener), 1);
+                }
+            };
+        },
+
+        // --- API CONNECTOR ---
         api: {
             connect: async function(url, options = {}) {
                 const config = {
@@ -131,30 +146,72 @@ const venjs = (() => {
             }
         },
 
-        // Updated: mount(container, component)
-        render: function(container, vnode) {
-            if (!isWeb) return console.log("Tree:", vnode);
-            if (!container) return console.error("Venjs: Target container not found.");
+        // --- LEGACY ANIMATION ENGINE ---
+        animate: function(selector, options = {}) {
+            if (!isWeb) return;
+            const elements = typeof selector === 'string' ? document.querySelectorAll(selector) : [selector];
+            const config = {
+                duration: options.duration || 1000,
+                easing: options.easing || 'cubic-bezier(0.22, 1, 0.36, 1)',
+                delay: options.delay || 0,
+                once: options.once !== false
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        this._play(entry.target, options, config);
+                        if (config.once) observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: options.threshold || 0.1 });
+
+            elements.forEach(el => observer.observe(el));
+        },
+
+        _play: (el, options, config) => {
+            el.style.willChange = 'transform, opacity';
+            const start = { opacity: options.opacity ? options.opacity[0] : 0, transform: '' };
+            const end = { opacity: options.opacity ? options.opacity[1] : 1, transform: 'translate(0,0) scale(1)' };
+            if (options.slideFrom === 'left') start.transform += 'translateX(-100px) ';
+            if (options.slideFrom === 'right') start.transform += 'translateX(100px) ';
+            if (options.scale) {
+                start.transform += `scale(${options.scale[0]}) `;
+                end.transform = 'translate(0,0) scale(' + options.scale[1] + ')';
+            }
+            el.animate([start, end], { duration: config.duration, easing: config.easing, delay: config.delay, fill: 'forwards' });
+        },
+
+        // --- RENDER / MOUNT ---
+        render: function(container, componentFactory) {
+            if (!isWeb) return;
+            if (!container) return console.error("Venjs: Container not found.");
+
+            let prevVNode = null;
 
             const renderLoop = () => {
-                const newVNode = typeof vnode === 'function' ? vnode() : vnode;
+                const nextVNode = typeof componentFactory === 'function' 
+                    ? componentFactory() 
+                    : componentFactory;
                 
-                // For now, we perform a clean re-render on signal change
-                // (VDom Patching can be optimized further in v4)
-                const newDom = createDom(newVNode);
-                container.innerHTML = '';
-                container.appendChild(newDom);
+                if (!prevVNode) {
+                    container.innerHTML = '';
+                    container.appendChild(createDom(nextVNode));
+                } else {
+                    const newDom = createDom(nextVNode);
+                    container.replaceChild(newDom, container.firstChild);
+                }
+                prevVNode = nextVNode;
             };
 
             effect(renderLoop);
         }
     };
 
-    // --- THE MAGIC PROXY (Tag shortcuts) ---
+    // --- PROXY FOR DYNAMIC TAGS ---
     return new Proxy(base, {
         get(target, prop) {
             if (prop in target) return target[prop];
-            // Returns a function that accepts (props, childrenArray) OR (props, ...childrenArgs)
             return (props, ...children) => createVNode(prop, props, ...children);
         }
     });
@@ -163,22 +220,3 @@ const venjs = (() => {
 // Aliases
 venjs.mount = venjs.render;
 venjs.ven = venjs.render;
-
-// --- EXAMPLE USAGE (The way you wanted it) ---
-/*
-const count = venjs.signal(0);
-
-const App = () => {
-    return venjs.div({ className: "container" }, [
-        venjs.h1({ style: { color: 'blue' } }, "Venjs V3"),
-        venjs.p({}, `Count is: ${count.value}`),
-        venjs.button({ 
-            onclick: () => count.value++,
-            className: "btn"
-        }, "Increment")
-    ]);
-};
-
-// Mount now takes the container first
-venjs.mount(document.getElementById("app"), App);
-*/

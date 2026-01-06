@@ -34,7 +34,7 @@ const venjs = (() => {
         };
     }
 
-    // --- REACTIVE SIGNALS (Modern State) ---
+    // --- REACTIVE SIGNALS ---
     let currentEffect = null;
 
     function signal(value) {
@@ -114,45 +114,32 @@ const venjs = (() => {
                 : "bg-blue-600 text-white shadow-lg hover:shadow-blue-200";
             return createVNode("button", { ...props, class: baseClass + variant + " " + (props.class || "") }, ...children);
         },
-
-        input: (props) => {
-            return createVNode("div", { class: "flex flex-col gap-1 w-full" }, [
-                props.label ? createVNode("label", { class: "text-sm font-semibold text-gray-600 ml-1" }, props.label) : null,
-                createVNode("input", { 
-                    ...props, 
-                    class: "px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all " + (props.class || "") 
-                })
-            ]);
-        },
-
-        appBar: (props) => {
-            return createVNode("nav", { 
-                class: "sticky top-0 z-50 w-full px-6 py-4 flex items-center justify-between backdrop-blur-md bg-white/80 border-b border-gray-100" 
-            }, [
-                createVNode("div", { class: "text-xl font-black tracking-tighter text-blue-600" }, props.title || "VENJS"),
-                createVNode("div", { class: "hidden md:flex gap-6 font-medium text-gray-600" }, props.links || []),
-                props.trailing || createVNode("div", { class: "w-8 h-8 rounded-full bg-gray-200" })
-            ]);
-        },
-
+        input: (props) => createVNode("div", { class: "flex flex-col gap-1 w-full" }, [
+            props.label ? createVNode("label", { class: "text-sm font-semibold text-gray-600 ml-1" }, props.label) : null,
+            createVNode("input", { 
+                ...props, 
+                class: "px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all " + (props.class || "") 
+            })
+        ]),
+        appBar: (props) => createVNode("nav", { 
+            class: "sticky top-0 z-50 w-full px-6 py-4 flex items-center justify-between backdrop-blur-md bg-white/80 border-b border-gray-100" 
+        }, [
+            createVNode("div", { class: "text-xl font-black tracking-tighter text-blue-600" }, props.title || "VENJS"),
+            createVNode("div", { class: "hidden md:flex gap-6 font-medium text-gray-600" }, props.links || []),
+            props.trailing || createVNode("div", { class: "w-8 h-8 rounded-full bg-gray-200" })
+        ]),
         sideBar: (props) => {
             const isOpen = props.isOpen !== false;
             return createVNode("aside", { 
                 class: `fixed left-0 top-0 h-full bg-white border-r border-gray-100 transition-all duration-300 z-[60] ${isOpen ? 'w-64' : 'w-0 -translate-x-full'} md:translate-x-0 md:w-64 p-6` 
             }, props.children || []);
         },
-
-        bottomNav: (props) => {
-            return createVNode("div", { 
-                class: "fixed bottom-0 left-0 w-full h-16 bg-white border-t border-gray-100 flex md:hidden items-center justify-around px-4 pb-safe z-50" 
-            }, props.items || []);
-        },
-
-        card: (props, ...children) => {
-            return createVNode("div", { 
-                class: "bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow " + (props.class || "") 
-            }, ...children);
-        }
+        bottomNav: (props) => createVNode("div", { 
+            class: "fixed bottom-0 left-0 w-full h-16 bg-white border-t border-gray-100 flex md:hidden items-center justify-around px-4 pb-safe z-50" 
+        }, props.items || []),
+        card: (props, ...children) => createVNode("div", { 
+            class: "bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow " + (props.class || "") 
+        }, ...children)
     };
 
     // --- THE CORE BASE OBJECT ---
@@ -161,19 +148,64 @@ const venjs = (() => {
         signal,
         effect,
         createElement: createVNode,
-        ...UI, 
+        ...UI,
+
+        // --- UNIFIED RENDERING METHODS ---
+        render: function(container, componentFactory) {
+            if (!isWeb || !container) return;
+            let prevVNode = null;
+            effect(() => {
+                const nextVNode = typeof componentFactory === 'function' ? componentFactory() : componentFactory;
+                if (!prevVNode) {
+                    container.innerHTML = '';
+                    container.appendChild(createDom(nextVNode));
+                } else {
+                    container.replaceChild(createDom(nextVNode), container.firstChild);
+                }
+                prevVNode = nextVNode;
+            });
+        },
+
+        ven: function(container, componentFactory) {
+            if (!isWeb || !container) return;
+            let prevVNode = null;
+            effect(() => {
+                const nextVNode = typeof componentFactory === 'function' ? componentFactory() : componentFactory;
+                if (!prevVNode) {
+                    container.innerHTML = '';
+                    container.appendChild(createDom(nextVNode));
+                } else {
+                    container.replaceChild(createDom(nextVNode), container.firstChild);
+                }
+                prevVNode = nextVNode;
+            });
+        },
+
+        mount: function(container, componentFactory) {
+            if (!isWeb || !container) return;
+            let prevVNode = null;
+            effect(() => {
+                const nextVNode = typeof componentFactory === 'function' ? componentFactory() : componentFactory;
+                if (!prevVNode) {
+                    container.innerHTML = '';
+                    container.appendChild(createDom(nextVNode));
+                } else {
+                    container.replaceChild(createDom(nextVNode), container.firstChild);
+                }
+                prevVNode = nextVNode;
+            });
+        },
 
         notification: {
             registerServiceWorker: async (swPath = '/sw.js') => {
-                if ('serviceWorker' in navigator) {
+                if (isWeb && 'serviceWorker' in navigator) {
                     try {
-                        const reg = await navigator.serviceWorker.register(swPath);
-                        return reg;
+                        return await navigator.serviceWorker.register(swPath);
                     } catch (e) { console.error('SW Registration Failed:', e); }
                 }
             },
             ask: async (phpUrl = null) => {
-                if (!("Notification" in window)) return false;
+                if (!isWeb || !("Notification" in window)) return false;
                 const permission = await Notification.requestPermission();
                 if (permission === "granted") {
                     const deviceId = btoa(navigator.userAgent + Math.random()).substring(0, 24);
@@ -189,7 +221,7 @@ const venjs = (() => {
                 return false;
             },
             push: (options) => {
-                if (Notification.permission === "granted") {
+                if (isWeb && Notification.permission === "granted") {
                     const n = new Notification("Venjs App", {
                         body: options.Content,
                         icon: options.icon || '',
@@ -246,21 +278,6 @@ const venjs = (() => {
             const start = { opacity: options.opacity ? options.opacity[0] : 0, transform: 'translateY(20px)' };
             const end = { opacity: options.opacity ? options.opacity[1] : 1, transform: 'translateY(0)' };
             el.animate([start, end], { duration: config.duration, easing: config.easing, fill: 'forwards' });
-        },
-
-        render: function(container, componentFactory) {
-            if (!isWeb || !container) return;
-            let prevVNode = null;
-            effect(() => {
-                const nextVNode = typeof componentFactory === 'function' ? componentFactory() : componentFactory;
-                if (!prevVNode) {
-                    container.innerHTML = '';
-                    container.appendChild(createDom(nextVNode));
-                } else {
-                    container.replaceChild(createDom(nextVNode), container.firstChild);
-                }
-                prevVNode = nextVNode;
-            });
         }
     };
 
@@ -272,11 +289,14 @@ const venjs = (() => {
     });
 })();
 
-// --- EXPORTS FOR MODULE SUPPORT ---
-// Only components are exported as prebuilt named modules
-export const { 
-    button, appBar, sideBar, bottomNav, card, input 
-} = venjs;
+// --- GLOBAL ATTACHMENT ---
+if (typeof window !== 'undefined') {
+    window.venjs = venjs;
+    window.v = venjs.createElement;
+    window.ven = venjs.ven;
+    window.mount = venjs.mount;
+}
 
-// The main object (containing signals, render, etc.) is the default export
-export default venjs;
+if (typeof exports !== 'undefined') {
+    module.exports = venjs;
+}

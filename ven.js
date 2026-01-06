@@ -1,7 +1,7 @@
 /*
 * @author Myxo victor
 * @type Cross-Platform Framework + Engine
-* @Version 3.3 (Unified: VDom + Proxy Tags + Signals + Legacy Store & Animate)
+* @Version 3.4 (Unified: VDom + Proxy Tags + Signals + Legacy Store + Notifications + API)
 * @copy Copyright Aximon 2025 | MIT License
 */
 
@@ -15,7 +15,6 @@ const venjs = (() => {
     // --- VIRTUAL DOM CORE ---
     function createVNode(tag, props, ...children) {
         const flatChildren = children.flat(Infinity).filter(c => c !== null && c !== undefined);
-        
         return {
             tag,
             props: props || {},
@@ -35,9 +34,8 @@ const venjs = (() => {
         };
     }
 
-    // --- REACTIVE SIGNALS (Modern State) ---
+    // --- REACTIVE SIGNALS ---
     let currentEffect = null;
-
     function signal(value) {
         const subscriptions = new Set();
         return {
@@ -60,7 +58,7 @@ const venjs = (() => {
         currentEffect = null;
     }
 
-    // --- DOM RENDERING ENGINE ---
+    // --- DOM ENGINE ---
     function createDom(vnode) {
         const dom = vnode.tag === "TEXT_ELEMENT"
             ? document.createTextNode("")
@@ -115,47 +113,78 @@ const venjs = (() => {
         effect,
         createElement: createVNode,
 
-        // --- LEGACY STATE MANAGEMENT (Added back for compatibility) ---
-        createStore: function(initialState) {
+        // --- NOTIFICATION MODULE (v3.4) ---
+        notification: {
+            registerServiceWorker: async (swPath = '/sw.js') => {
+                if ('serviceWorker' in navigator) {
+                    try {
+                        const reg = await navigator.serviceWorker.register(swPath);
+                        console.log('Venjs SW Registered:', reg.scope);
+                        return reg;
+                    } catch (e) { console.error('SW Registration Failed:', e); }
+                }
+            },
+            ask: async (phpUrl = null) => {
+                if (!("Notification" in window)) return false;
+                const permission = await Notification.requestPermission();
+                if (permission === "granted") {
+                    const deviceId = btoa(navigator.userAgent + Math.random()).substring(0, 24);
+                    if (phpUrl) {
+                        fetch(phpUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ deviceId, type: 'browser_push', timestamp: Date.now() })
+                        }).catch(e => console.error("Venjs Sync Error:", e));
+                    }
+                    return deviceId;
+                }
+                return false;
+            },
+            push: (options) => {
+                if (Notification.permission === "granted") {
+                    const n = new Notification("Venjs App", {
+                        body: options.Content,
+                        icon: options.icon || '',
+                    });
+                    n.onclick = () => {
+                        window.focus();
+                        if (options.url) window.open(options.url, '_blank');
+                        n.close();
+                    };
+                }
+            }
+        },
+
+        // --- LEGACY STATE ---
+        createStore: (initialState) => {
             let state = { ...initialState };
             const listeners = [];
             return {
                 getState: () => state,
-                setState: (newState) => {
-                    state = { ...state, ...newState };
-                    listeners.forEach(listener => listener(state));
-                },
-                subscribe: (listener) => {
-                    listeners.push(listener);
-                    return () => listeners.splice(listeners.indexOf(listener), 1);
-                }
+                setState: (ns) => { state = { ...state, ...ns }; listeners.forEach(l => l(state)); },
+                subscribe: (l) => { listeners.push(l); return () => listeners.splice(listeners.indexOf(l), 1); }
             };
         },
 
         // --- API CONNECTOR ---
         api: {
-            connect: async function(url, options = {}) {
+            connect: async (url, options = {}) => {
                 const config = {
                     method: options.method || 'GET',
                     headers: { 'Content-Type': 'application/json', ...options.headers },
                     ...options
                 };
                 if (options.body && typeof options.body === 'object') config.body = JSON.stringify(options.body);
-                const response = await fetch(url, config);
-                return await response.json();
+                const res = await fetch(url, config);
+                return await res.json();
             }
         },
 
-        // --- LEGACY ANIMATION ENGINE ---
+        // --- ANIMATION ENGINE ---
         animate: function(selector, options = {}) {
             if (!isWeb) return;
             const elements = typeof selector === 'string' ? document.querySelectorAll(selector) : [selector];
-            const config = {
-                duration: options.duration || 1000,
-                easing: options.easing || 'cubic-bezier(0.22, 1, 0.36, 1)',
-                delay: options.delay || 0,
-                once: options.once !== false
-            };
+            const config = { duration: options.duration || 1000, easing: options.easing || 'ease-out', once: options.once !== false };
 
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
@@ -165,50 +194,31 @@ const venjs = (() => {
                     }
                 });
             }, { threshold: options.threshold || 0.1 });
-
             elements.forEach(el => observer.observe(el));
         },
 
         _play: (el, options, config) => {
-            el.style.willChange = 'transform, opacity';
-            const start = { opacity: options.opacity ? options.opacity[0] : 0, transform: '' };
-            const end = { opacity: options.opacity ? options.opacity[1] : 1, transform: 'translate(0,0) scale(1)' };
-            if (options.slideFrom === 'left') start.transform += 'translateX(-100px) ';
-            if (options.slideFrom === 'right') start.transform += 'translateX(100px) ';
-            if (options.scale) {
-                start.transform += `scale(${options.scale[0]}) `;
-                end.transform = 'translate(0,0) scale(' + options.scale[1] + ')';
-            }
-            el.animate([start, end], { duration: config.duration, easing: config.easing, delay: config.delay, fill: 'forwards' });
+            const start = { opacity: options.opacity ? options.opacity[0] : 0, transform: 'translateY(20px)' };
+            const end = { opacity: options.opacity ? options.opacity[1] : 1, transform: 'translateY(0)' };
+            el.animate([start, end], { duration: config.duration, easing: config.easing, fill: 'forwards' });
         },
 
         // --- RENDER / MOUNT ---
         render: function(container, componentFactory) {
-            if (!isWeb) return;
-            if (!container) return console.error("Venjs: Container not found.");
-
             let prevVNode = null;
-
-            const renderLoop = () => {
-                const nextVNode = typeof componentFactory === 'function' 
-                    ? componentFactory() 
-                    : componentFactory;
-                
+            effect(() => {
+                const nextVNode = typeof componentFactory === 'function' ? componentFactory() : componentFactory;
                 if (!prevVNode) {
                     container.innerHTML = '';
                     container.appendChild(createDom(nextVNode));
                 } else {
-                    const newDom = createDom(nextVNode);
-                    container.replaceChild(newDom, container.firstChild);
+                    container.replaceChild(createDom(nextVNode), container.firstChild);
                 }
                 prevVNode = nextVNode;
-            };
-
-            effect(renderLoop);
+            });
         }
     };
 
-    // --- PROXY FOR DYNAMIC TAGS ---
     return new Proxy(base, {
         get(target, prop) {
             if (prop in target) return target[prop];
@@ -217,6 +227,5 @@ const venjs = (() => {
     });
 })();
 
-// Aliases
 venjs.mount = venjs.render;
 venjs.ven = venjs.render;

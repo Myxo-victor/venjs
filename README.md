@@ -1,34 +1,33 @@
-VenJS Framework 
-VenJS is a lightweight, cross-platform JavaScript framework and engine for building dynamic applications with minimal overhead. Created by Myxo Victor at www.aximon.ng Aximon, VenJS combines high-performance UI rendering with a built-in API connector and animation engine.FeaturesUnified API Connector: Simplified async/await interface for fetching data.Cross-Platform Engine: Detects environment to handle Web DOM or Mobile Virtual Nodes.Rendering Aliases: Use venjs.render, venjs.ven, or venjs.mount to attach your UI.
-Animation Engine: Built-in Intersection Observer logic for scroll-triggered animations.
-State Management: Reactive store for efficient data updates.
-Installation Include via CDNUse jsDelivr to include VenJS directly in your HTML:<script src="[https://cdn.jsdelivr.net/gh/Myxo-victor/venjs@latest/ven.js](https://cdn.jsdelivr.net/gh/Myxo-victor/venjs@latest/ven.js)"></script>
-Local InstallationCopy ven.js to your project directory.Include it in your HTML:<script src="ven.js"></script>
-Usage ExamplesRendering (Mounting) UIYou can now use render, ven, or mount interchangeably.
-const App = () => venjs.createElement('h1', { 
-    textContent: 'Welcome to VenJS',
-    className: 'title' 
+VenJS Framework v4.0 (Enterprise)VenJS is a high-performance, lightweight JavaScript framework designed for building modern, reactive web applications with minimal overhead. Created by Myxo Victor at Aximon, VenJS v4.0 introduces an Enterprise UI suite and a robust Reactive Signal system.New in v4.0 Enterprise UI Module: Pre-styled, responsive components (appBar, sideBar, button, etc.).Reactive Signals: Fine-grained state management using the signal and effect pattern.Universal Module Support: Use as a global script or via ES6 import statements.Unified VDom Engine: Faster diffing and rendering for complex UIs.Installation1. Modern Import (Recommended)VenJS now supports named exports for its enterprise components:import venjs, { appBar, button, signal } from './venjs.js';
+2. Standard CDNInclude VenJS directly in your HTML. All features are available under the global venjs object:<script src="[https://cdn.jsdelivr.net/gh/Myxo-victor/venjs@latest/ven.js](https://cdn.jsdelivr.net/gh/Myxo-victor/venjs@latest/ven.js)"></script>
+Core Features1. Reactive Signals (Modern State)The new signal system ensures your UI only updates exactly where the data changes.const count = venjs.signal(0);
+
+// Create an effect that runs whenever count changes
+venjs.effect(() => {
+    console.log("Current count:", count.value);
 });
 
-// All these do the same thing:
-venjs.mount(document.getElementById('app'), App);
-// venjs.ven(document.getElementById('app'), App);
-// venjs.render(document.getElementById('app'), App);
-Reactive Stateconst store = venjs.createStore({ count: 0 });
+const Counter = () => venjs.button({ 
+    onclick: () => count.value++ 
+}, `Count is: ${count.value}`);
 
-const Counter = () => venjs.createElement('button', {
-    textContent: `Count is: ${store.getState().count}`,
-    events: { 
-        click: () => store.setState({ count: store.getState().count + 1 }) 
-    }
-});
+venjs.render(document.getElementById('app'), Counter);
+2. Enterprise UI ComponentsBuild professional dashboards in seconds using prebuilt, styled components.import { appBar, sideBar, card } from './venjs.js';
 
-store.subscribe(() => venjs.ven(document.getElementById('app'), Counter));
-venjs.ven(document.getElementById('app'), Counter);
-API Connectionasync function fetchData() {
-    const data = await venjs.api.connect('[https://api.example.com/data](https://api.example.com/data)');
+const App = () => [
+    appBar({ title: "Admin Portal" }),
+    sideBar({ isOpen: true }, [
+        venjs.div({ class: "p-4" }, "Dashboard Menu")
+    ]),
+    card({ class: "m-10" }, "Welcome to the Enterprise Suite.")
+];
+3. API ConnectorSimple async/await interface for external data.async function loadData() {
+    const data = await venjs.api.connect('[https://api.example.com/users](https://api.example.com/users)');
     console.log(data);
 }
-API ReferenceMethodDescriptioncreateElement(tag, props, children)Creates a DOM element (Web) or Virtual Node (Mobile).render/ven/mount(app, component)Mounts a component to a target container.createStore(initialState)Initializes a reactive state management object.api.connect(url, options)Performs an optimized fetch request.animate(selector, options)Triggers CSS animations when elements enter the viewport.
-License MIT License
-Copyright © 2025 Aximon | MIT License
+4. Animation EngineTrigger animations automatically as users scroll.venjs.animate('.fade-in-section', {
+    opacity: [0, 1],
+    duration: 800,
+    threshold: 0.2
+});
+API ReferenceMethodTypeDescriptionsignal(val)StateCreates a reactive value.effect(fn)StateRuns a function automatically when signals inside it change.render(container, app)EngineMounts the application to the DOM.appBar(props)UIPrebuilt responsive top navigation bar.sideBar(props)UIPrebuilt animated navigation drawer.api.connect(url)ToolOptimized fetch wrapper for JSON APIs.createStore(state)LegacyOriginal Redux-style state management.LicenseCopyright © 2025 Aximon | MIT LicenseCreated by Myxo Victor

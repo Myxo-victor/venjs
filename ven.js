@@ -76,6 +76,7 @@ const venjs = (() => {
     }
 
     function updateDom(dom, prevProps, nextProps) {
+        // Remove old properties
         Object.keys(prevProps).forEach(name => {
             if (isEvent(name)) {
                 const eventType = name.toLowerCase().substring(2);
@@ -86,6 +87,7 @@ const venjs = (() => {
             }
         });
 
+        // Add new properties
         Object.keys(nextProps).forEach(name => {
             const val = nextProps[name];
             if (isEvent(name)) {
@@ -150,7 +152,6 @@ const venjs = (() => {
         createElement: createVNode,
         ...UI,
 
-        // --- UNIFIED RENDERING METHODS ---
         render: function(container, componentFactory) {
             if (!isWeb || !container) return;
             let prevVNode = null;
@@ -160,37 +161,12 @@ const venjs = (() => {
                     container.innerHTML = '';
                     container.appendChild(createDom(nextVNode));
                 } else {
-                    container.replaceChild(createDom(nextVNode), container.firstChild);
-                }
-                prevVNode = nextVNode;
-            });
-        },
-
-        ven: function(container, componentFactory) {
-            if (!isWeb || !container) return;
-            let prevVNode = null;
-            effect(() => {
-                const nextVNode = typeof componentFactory === 'function' ? componentFactory() : componentFactory;
-                if (!prevVNode) {
-                    container.innerHTML = '';
-                    container.appendChild(createDom(nextVNode));
-                } else {
-                    container.replaceChild(createDom(nextVNode), container.firstChild);
-                }
-                prevVNode = nextVNode;
-            });
-        },
-
-        mount: function(container, componentFactory) {
-            if (!isWeb || !container) return;
-            let prevVNode = null;
-            effect(() => {
-                const nextVNode = typeof componentFactory === 'function' ? componentFactory() : componentFactory;
-                if (!prevVNode) {
-                    container.innerHTML = '';
-                    container.appendChild(createDom(nextVNode));
-                } else {
-                    container.replaceChild(createDom(nextVNode), container.firstChild);
+                    const newDom = createDom(nextVNode);
+                    if (container.firstChild) {
+                        container.replaceChild(newDom, container.firstChild);
+                    } else {
+                        container.appendChild(newDom);
+                    }
                 }
                 prevVNode = nextVNode;
             });
@@ -258,10 +234,17 @@ const venjs = (() => {
             }
         },
 
+        // --- FIXED ANIMATION ENGINE ---
         animate: function(selector, options = {}) {
             if (!isWeb) return;
-            const elements = typeof selector === 'string' ? document.querySelectorAll(selector) : [selector];
-            const config = { duration: options.duration || 1000, easing: options.easing || 'ease-out', once: options.once !== false };
+            const elements = typeof selector === 'string' ? document.querySelectorAll(selector) : (selector instanceof HTMLElement ? [selector] : selector);
+            if (!elements || elements.length === 0) return;
+
+            const config = { 
+                duration: options.duration || 800, 
+                easing: options.easing || 'cubic-bezier(0.4, 0, 0.2, 1)', 
+                once: options.once !== false 
+            };
 
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
@@ -271,16 +254,47 @@ const venjs = (() => {
                     }
                 });
             }, { threshold: options.threshold || 0.1 });
-            elements.forEach(el => observer.observe(el));
+            
+            elements.forEach(el => {
+                // Set initial state to avoid flash
+                el.style.opacity = options.opacity ? options.opacity[0] : 0;
+                observer.observe(el);
+            });
         },
 
         _play: (el, options, config) => {
-            const start = { opacity: options.opacity ? options.opacity[0] : 0, transform: 'translateY(20px)' };
-            const end = { opacity: options.opacity ? options.opacity[1] : 1, transform: 'translateY(0)' };
-            el.animate([start, end], { duration: config.duration, easing: config.easing, fill: 'forwards' });
+            // Directional Map for slideFrom logic
+            const directionMap = {
+                'top': 'translateY(-100px)',
+                'bottom': 'translateY(100px)',
+                'left': 'translateX(-100px)',
+                'right': 'translateX(100px)'
+            };
+
+            const startTransform = options.transform 
+                ? options.transform[0] 
+                : (directionMap[options.slideFrom] || 'translateY(40px)');
+
+            const keyframes = [
+                { 
+                    opacity: options.opacity ? options.opacity[0] : 0, 
+                    transform: startTransform 
+                },
+                { 
+                    opacity: options.opacity ? options.opacity[1] : 1, 
+                    transform: options.transform ? options.transform[1] : 'translate(0, 0)' 
+                }
+            ];
+            
+            el.animate(keyframes, { 
+                duration: config.duration, 
+                easing: config.easing, 
+                fill: 'forwards' 
+            });
         }
     };
 
+    // Proxied to support legacy calls like venjs.div()
     return new Proxy(base, {
         get(target, prop) {
             if (prop in target) return target[prop];
@@ -289,12 +303,15 @@ const venjs = (() => {
     });
 })();
 
+// Legacy Aliases
+venjs.ven = venjs.render;
+venjs.mount = venjs.render;
+
 // --- GLOBAL ATTACHMENT ---
 if (typeof window !== 'undefined') {
     window.venjs = venjs;
+    window.venX = venjs;
     window.v = venjs.createElement;
-    window.ven = venjs.ven;
-    window.mount = venjs.mount;
 }
 
 if (typeof exports !== 'undefined') {

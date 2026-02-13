@@ -1,0 +1,11 @@
+This folder holds the api entries for your applications
+create your api files here 
+* Php
+* Java
+* Python
+* Ruby
+* Nodejs
+* Rust
+* Go, etc.
+
+And many other programming languages

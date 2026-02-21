@@ -1,0 +1,73 @@
+/* VenJS 5.0 starter stylesheet */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    color: #0f172a;
+}
+
+.app {
+    max-width: 860px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding: 32px 20px;
+}
+
+.hero-title {
+    font-size: 2rem;
+    margin-bottom: 10px;
+}
+
+.hero-copy {
+    color: #334155;
+    margin-bottom: 20px;
+}
+
+.nav {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+}
+
+.nav-btn {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+    border-color: #0f766e;
+}
+
+.nav-btn.active {
+    background: #0f766e;
+    border-color: #0f766e;
+    color: #ffffff;
+}
+
+.page {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px;
+}
+
+.page-title {
+    margin-bottom: 8px;
+}
+
+.page-copy {
+    color: #334155;
+    line-height: 1.6;
+}

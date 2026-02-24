@@ -1,8 +1,9 @@
 /*
 * @author Myxo victor
-* @type Enterprise-Level UI Framework + Engine
+* @type framework + library
 * @Version 5.0 (Unified: VDom + Signals + Store + Animation + API + Notifications + Components)
 * @copy Copyright Aximon 2026 | MIT License
+* @update Remove prebuilt UI components
 */
 
 const venjs = (() => {
@@ -246,50 +247,12 @@ const venjs = (() => {
         }
     }
 
-    // --- ENTERPRISE UI COMPONENTS ---
-    const UI = {
-        button: (props, ...children) => {
-            const baseClass = "px-6 py-2.5 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 ";
-            const variant = props.variant === 'outline' 
-                ? "border-2 border-blue-600 text-blue-600 hover:bg-blue-50" 
-                : "bg-blue-600 text-white shadow-lg hover:shadow-blue-200";
-            return createVNode("button", { ...props, class: baseClass + variant + " " + (props.class || "") }, ...children);
-        },
-        input: (props) => createVNode("div", { class: "flex flex-col gap-1 w-full" }, [
-            props.label ? createVNode("label", { class: "text-sm font-semibold text-gray-600 ml-1" }, props.label) : null,
-            createVNode("input", { 
-                ...props, 
-                class: "px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all " + (props.class || "") 
-            })
-        ]),
-        appBar: (props) => createVNode("nav", { 
-            class: "sticky top-0 z-50 w-full px-6 py-4 flex items-center justify-between backdrop-blur-md bg-white/80 border-b border-gray-100" 
-        }, [
-            createVNode("div", { class: "text-xl font-black tracking-tighter text-blue-600" }, props.title || "VENJS"),
-            createVNode("div", { class: "hidden md:flex gap-6 font-medium text-gray-600" }, props.links || []),
-            props.trailing || createVNode("div", { class: "w-8 h-8 rounded-full bg-gray-200" })
-        ]),
-        sideBar: (props) => {
-            const isOpen = props.isOpen !== false;
-            return createVNode("aside", { 
-                class: `fixed left-0 top-0 h-full bg-white border-r border-gray-100 transition-all duration-300 z-[60] ${isOpen ? 'w-64' : 'w-0 -translate-x-full'} md:translate-x-0 md:w-64 p-6` 
-            }, props.children || []);
-        },
-        bottomNav: (props) => createVNode("div", { 
-            class: "fixed bottom-0 left-0 w-full h-16 bg-white border-t border-gray-100 flex md:hidden items-center justify-around px-4 pb-safe z-50" 
-        }, props.items || []),
-        card: (props, ...children) => createVNode("div", { 
-            class: "bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow " + (props.class || "") 
-        }, ...children)
-    };
-
     // --- THE CORE BASE OBJECT ---
     const base = {
         isWeb,
         signal,
         effect,
         createElement: createVNode,
-        ...UI,
 
         render: function(container, componentFactory) {
             if (!isWeb || !container) return;
@@ -588,10 +551,13 @@ const venjs = (() => {
                 once: options.once !== false 
             };
 
+            const stagger = options.stagger || 0;
+
             const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
+                entries.forEach((entry, index) => {
                     if (entry.isIntersecting) {
-                        this._play(entry.target, options, config);
+                        const delay = stagger * index;
+                        this._play(entry.target, options, config, delay);
                         if (config.once) observer.unobserve(entry.target);
                     }
                 });
@@ -604,7 +570,7 @@ const venjs = (() => {
             });
         },
 
-        _play: (el, options, config) => {
+        _play: (el, options, config, delay = 0) => {
             // Directional Map for slideFrom logic
             const directionMap = {
                 'top': 'translateY(-100px)',
@@ -631,7 +597,8 @@ const venjs = (() => {
             el.animate(keyframes, { 
                 duration: config.duration, 
                 easing: config.easing, 
-                fill: 'forwards' 
+                fill: 'forwards',
+                delay: delay
             });
         }
     };

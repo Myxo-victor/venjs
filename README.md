@@ -1,6 +1,6 @@
-# VenJS 5.0
+# VenJS 5.5
 
-VenJS 5.0 is a lightweight JavaScript framework for building reactive web interfaces with a simple component API, signals, effects, animation helpers, API utilities, and notification tooling.
+VenJS 5.5 is a lightweight JavaScript framework for building reactive web interfaces with a simple component API, signals, effects, animation helpers, API utilities, and notification tooling.
 
 ## Quick Start
 
@@ -11,11 +11,12 @@ VenJS 5.0 is a lightweight JavaScript framework for building reactive web interf
 - Logic: `logic/app.js`
 - Styles: `index.css`
 
-## Core Features in 5.0
+## Core Features in 5.5
 
 - Component rendering with `venjs.render(...)`
 - Declarative element creation with `venjs.div(...)`, `venjs.h1(...)`, etc.
 - Reactive state using `venjs.signal(...)` and `venjs.effect(...)`
+- **Improved Reconciliation Engine**: Stable DOM patching with backward-iteration element removal.
 - Async utilities with `venjs.api.connect(...)` and `venjs.api.query(...)`
 - Scroll and entry animations with `venjs.animate(...)`
 - Browser notification helpers and service-worker integration

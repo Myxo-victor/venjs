@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * VenJS 5.0 Secure Database Engine
+ * VenJS 5.5 Secure Database Engine
  *
  * Configure your database credentials in CONFIG below.
  * This endpoint is used by venjs.db.connect(...).
@@ -17,9 +17,9 @@ $CONFIG = [
     // Add your database host, database name, username, and password here.
     'db_host' => '127.0.0.1',
     'db_port' => 3306,
-    'db_name' => 'your_database_name',
-    'db_user' => 'your_database_user',
-    'db_pass' => 'your_database_password',
+    'db_name' => 'test', #Change this to your own database name
+    'db_user' => 'root', #This too
+    'db_pass' => '', #This too
     'db_charset' => 'utf8mb4',
 
     // Create a long random secret key and use same key in venjs.db.connect({ apiKey: '...' }).
@@ -28,17 +28,17 @@ $CONFIG = [
 
     // Allowed frontend origins. Keep minimal in production.
     'allowed_origins' => [
-        'http://127.0.0.1:5500',
-        'http://localhost:5500'
+        'http://localhost', #This too, this one is for localhost
+        'http://127.0.0.1' #and this
     ],
 
     // Whitelist allowed tables to prevent access to unexpected DB tables.
     'allowed_tables' => [
-        'users'
+        'users' #Add your database tables here
     ],
 
     // Set true in development to include exception details.
-    'debug' => false,
+    'debug' => true,
 ];
 
 function respond(int $status, array $payload): void {
@@ -220,6 +220,37 @@ try {
             respond(201, ['ok' => true, 'data' => ['id' => $pdo->lastInsertId()]]);
         }
 
+		case 'register': {
+            $data = $payload['data'] ?? null;
+            if (!is_array($data) || count($data) === 0) {
+                throw new InvalidArgumentException('register requires non-empty data object.');
+            }
+
+            // Hash the password before storing it
+			if (isset($data['password'])) {
+				$data['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
+				unset($data['password']);
+			}
+
+            $columns = [];
+            $placeholders = [];
+            $params = [];
+            $i = 0;
+            foreach ($data as $column => $value) {
+                if (!is_string($column)) {
+                    throw new InvalidArgumentException('Invalid register column.');
+                }
+                $safeColumn = sanitize_identifier($column);
+                $param = ':c' . $i++;
+                $columns[] = "`{$safeColumn}`";
+                $placeholders[] = $param;
+                $params[$param] = $value;
+            }
+            $sql = "INSERT INTO `{$safeTable}` (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            respond(201, ['ok' => true, 'data' => ['id' => $pdo->lastInsertId()]]);
+        }
         case 'update': {
             $where = $payload['where'] ?? null;
             $data = $payload['data'] ?? null;
